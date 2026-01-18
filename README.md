@@ -1,166 +1,59 @@
-<!doctype html>
-<html lang="th">
-<head>
-<meta charset="UTF-8">
-<title>AI Image Team Game</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-
+<div>Teachable Machine Image Model</div>
+<button type="button" onclick="init()">Start</button>
+<div id="webcam-container"></div>
+<div id="label-container"></div>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+<script type="text/javascript">
+    // More API functions here:
+    // https://github.com/googlecreativelab/teachablemachine-community/tree/master/libraries/image
 
-<style>
-body{
-  margin:0;
-  font-family:sans-serif;
-  background:#101820;
-  color:white;
-  text-align:center;
-}
-button{
-  font-size:18px;
-  padding:10px 20px;
-  border:none;
-  border-radius:10px;
-  background:#00c853;
-  color:black;
-}
-canvas{
-  width:90vw;
-  max-width:320px;
-  border-radius:15px;
-  border:3px solid #fff;
-}
-.card{
-  margin:10px auto;
-  padding:10px;
-  width:90%;
-  max-width:400px;
-  background:#1f2933;
-  border-radius:15px;
-}
-.score{
-  font-size:22px;
-}
-.target{
-  color:#ff5252;
-  font-size:20px;
-}
-.timer{
-  font-size:24px;
-  color:#ffeb3b;
-}
-</style>
-</head>
+    // the link to your model provided by Teachable Machine export panel
+    const URL = "./my_model/";
 
-<body>
+    let model, webcam, labelContainer, maxPredictions;
 
-<h2>🎮 AI แข่งเป็นทีม</h2>
-<button onclick="startGame()">▶ เริ่มเกม</button>
+    // Load the image model and setup the webcam
+    async function init() {
+        const modelURL = URL + "model.json";
+        const metadataURL = URL + "metadata.json";
 
-<div class="card timer">⏱ เวลา: <span id="time">60</span></div>
-<div class="card">👥 ทีมปัจจุบัน: <b id="team">ทีม A</b></div>
-<div class="card">🎯 เป้าหมาย: <div class="target" id="target">-</div></div>
+        // load the model and metadata
+        // Refer to tmImage.loadFromFiles() in the API to support files from a file picker
+        // or files from your local hard drive
+        // Note: the pose library adds "tmImage" object to your window (window.tmImage)
+        model = await tmImage.load(modelURL, metadataURL);
+        maxPredictions = model.getTotalClasses();
 
-<div id="webcam-container"></div>
+        // Convenience function to setup a webcam
+        const flip = true; // whether to flip the webcam
+        webcam = new tmImage.Webcam(200, 200, flip); // width, height, flip
+        await webcam.setup(); // request access to the webcam
+        await webcam.play();
+        window.requestAnimationFrame(loop);
 
-<div class="card score">
-ทีม A: <span id="scoreA">0</span> |
-ทีม B: <span id="scoreB">0</span>
-</div>
-
-<div id="result" class="card"></div>
-
-<audio id="sound-correct" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg"></audio>
-<audio id="sound-end" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
-
-<script>
-const URL = "https://teachablemachine.withgoogle.com/models/XXXXXXXXX/";
-
-let model, webcam, maxPredictions;
-let targetClass = "";
-let team = "A";
-let scoreA = 0, scoreB = 0;
-let time = 60;
-let canScore = true;
-let timerInterval;
-
-async function startGame(){
-  document.getElementById("result").innerHTML = "";
-  time = 60;
-  scoreA = scoreB = 0;
-  team = "A";
-  updateUI();
-
-  const modelURL = URL + "model.json";
-  const metadataURL = URL + "metadata.json";
-  model = await tmImage.load(modelURL, metadataURL);
-  maxPredictions = model.getTotalClasses();
-
-  webcam = new tmImage.Webcam(300,300,true);
-  await webcam.setup();
-  await webcam.play();
-  document.getElementById("webcam-container").innerHTML="";
-  document.getElementById("webcam-container").appendChild(webcam.canvas);
-
-  newTarget();
-  window.requestAnimationFrame(loop);
-
-  timerInterval = setInterval(countdown,1000);
-}
-
-function countdown(){
-  time--;
-  document.getElementById("time").innerText=time;
-  if(time===30){
-    team="B"; updateUI();
-  }
-  if(time<=0){
-    endGame();
-  }
-}
-
-function endGame(){
-  clearInterval(timerInterval);
-  document.getElementById("sound-end").play();
-
-  let winner="เสมอ";
-  if(scoreA>scoreB) winner="🏆 ทีม A ชนะ!";
-  if(scoreB>scoreA) winner="🏆 ทีม B ชนะ!";
-
-  document.getElementById("result").innerHTML=
-    `📊 ตารางคะแนน<br>
-     ทีม A: ${scoreA}<br>
-     ทีม B: ${scoreB}<br><br>${winner}`;
-}
-
-function newTarget(){
-  const labels = model.getClassLabels();
-  targetClass = labels[Math.floor(Math.random()*labels.length)];
-  document.getElementById("target").innerText=targetClass;
-  canScore=true;
-}
-
-function updateUI(){
-  document.getElementById("team").innerText="ทีม "+team;
-  document.getElementById("scoreA").innerText=scoreA;
-  document.getElementById("scoreB").innerText=scoreB;
-}
-
-async function loop(){
-  webcam.update();
-  const prediction = await model.predict(webcam.canvas);
-  for(const p of prediction){
-    if(p.className===targetClass && p.probability>0.8 && canScore && time>0){
-      if(team==="A") scoreA++; else scoreB++;
-      document.getElementById("sound-correct").play();
-      updateUI();
-      canScore=false;
-      setTimeout(newTarget,1200);
+        // append elements to the DOM
+        document.getElementById("webcam-container").appendChild(webcam.canvas);
+        labelContainer = document.getElementById("label-container");
+        for (let i = 0; i < maxPredictions; i++) { // and class labels
+            labelContainer.appendChild(document.createElement("div"));
+        }
     }
-  }
-  if(time>0) requestAnimationFrame(loop);
-}
-</script>
 
-</body>
-</html>
+    async function loop() {
+        webcam.update(); // update the webcam frame
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    // run the webcam image through the image model
+    async function predict() {
+        // predict can take in an image, video or canvas html element
+        const prediction = await model.predict(webcam.canvas);
+        for (let i = 0; i < maxPredictions; i++) {
+            const classPrediction =
+                prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+            labelContainer.childNodes[i].innerHTML = classPrediction;
+        }
+    }
+</script>
